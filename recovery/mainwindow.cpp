@@ -73,7 +73,7 @@ MainWindow::MainWindow(const QString &drive, const QString &defaultDisplay, QSpl
     QMainWindow(parent),
     ui(new Ui::MainWindow),
     _qpd(NULL), _kcpos(0), _defaultDisplay(defaultDisplay),
-    _silent(false), _allowSilent(false), _showAll(false), _fixate(false), _splash(splash), _settings(NULL),
+    _silent(false), _allowSilent(false), _networkSilent(false), _showAll(false), _fixate(false), _splash(splash), _settings(NULL),
     _hasWifi(false), _numInstalledOS(0), _devlistcount(0), _netaccess(NULL), _displayModeBox(NULL), _drive(drive), _bootdrive(drive)
 {
     ui->setupUi(this);
@@ -223,6 +223,18 @@ MainWindow::MainWindow(const QString &drive, const QString &defaultDisplay, QSpl
     else
     {
         startNetworking();
+    }
+
+    if (cmdline.contains("silentnetworkinstall"))
+    {
+	/* If silentnetworkinstall is specified, auto-install single image in /os
+	 * or from network */
+
+	if (_allowSilent)
+	{
+		startNetworking();
+	}
+	_networkSilent = true;
     }
 
     /* Disable online help buttons until network is functional */
@@ -918,10 +930,13 @@ bool MainWindow::requireNetwork()
 {
     if (!isOnline())
     {
-        QMessageBox::critical(this,
-                              tr("No network access"),
-                              tr("Wired network access is required for this feature. Please insert a network cable into the network port."),
-                              QMessageBox::Close);
+        if (!_networkSilent)
+	{
+            QMessageBox::critical(this,
+                                  tr("No network access"),
+                                  tr("Wired network access is required for this feature. Please insert a network cable into the network port."),
+                                  QMessageBox::Close);
+        }
         return false;
     }
 
@@ -1069,6 +1084,32 @@ void MainWindow::downloadLists()
         else
             downloadList(url);
     }
+
+    if (ui->list->count() != 0)
+    {
+        QList<QListWidgetItem *> l = ui->list->findItems(RECOMMENDED_IMAGE, Qt::MatchExactly);
+
+        if (!l.isEmpty())
+        {
+            ui->list->setCurrentItem(l.first());
+        }
+        else
+        {
+            ui->list->setCurrentRow(0);
+        }
+
+        if (_networkSilent && !_numInstalledOS && ui->list->count() == 1)
+        {
+            // No OS installed, perform silent installation
+            qDebug() << "Performing silent network installation";
+            _silent = true;
+            ui->list->item(0)->setCheckState(Qt::Checked);
+            on_actionWrite_image_to_disk_triggered();
+            _numInstalledOS = 1;
+            ui->actionCancel->setEnabled(true);
+        }
+    }
+
 }
 
 void MainWindow::rebuildInstalledList()
@@ -1592,7 +1633,7 @@ void MainWindow::hideDialogIfNoNetwork()
 {
     if (_qpd)
     {
-        if (!isOnline())
+        if (!_networkSilent && !isOnline())
         {
             /* No network cable inserted */
             _qpd->hide();

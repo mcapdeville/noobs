@@ -41,7 +41,7 @@ protected:
     QList <int> _kc;
     int _kcpos;
     const QString _defaultDisplay;
-    bool _silent, _allowSilent, _showAll, _fixate, _usbimages;
+    bool _silent, _allowSilent, _networkSilent, _showAll, _fixate, _usbimages;
     static bool _partInited;
     static int _currentMode;
     QSplashScreen *_splash;
